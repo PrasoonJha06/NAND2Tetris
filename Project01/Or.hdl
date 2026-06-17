@@ -1,0 +1,24 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/1/Or.hdl
+/**
+ * Or gate:
+ * if (a or b) out = 1, else out = 0 
+ */
+CHIP Or {
+    IN a, b;
+    OUT out;
+
+    PARTS:
+    /**
+    De Morgan's Law:
+    Not(a Or b) = Not(a) And Not(b)
+    We can negate it again to get get (a Or b)
+    a Or b = Not(Not(a Or b)) = Not(Not(a) And Not(b))
+    **/
+    Not(in=a, out=nota);
+    Not(in=b, out=notb);
+    And(a=nota, b=notb, out=inAnd);
+    Not(in=inAnd, out=out);
+}
