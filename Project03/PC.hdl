@@ -15,10 +15,14 @@ CHIP PC {
     
     PARTS:
     /*
-    This one turned out to be harder than I thought.
-    However the final solution ended up being remarkably
-    simple. Look at the circuit diagram to understand how
-    is it working.
+    The key to solving this problem is to understand
+    that input is being written in the register in case
+    of all three Boolean values being true (1).
+    The task is to change the input for all 3 cases.
+    How it is done is shown in the circuit diagram.
+
+    This ended up being harder than I thought even if the 
+    apparently simple looking diagram may suggest otherwise.
     */
 
     // inc condition
