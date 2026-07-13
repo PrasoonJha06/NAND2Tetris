@@ -1,0 +1,17 @@
+// Multiplication is repeated addition
+// Computes RAM[2] = RAM[0] + RAM[0] + ... + RAM[0]
+//                                   (RAM[1] times)
+
+    term = R0
+    n = R1
+    i = 0
+    sum = 0
+LOOP:
+    if i == n goto STOP
+    sum = sum + term
+    i = i + 1
+    goto LOOP
+STOP:
+    R2 = sum
+END:
+    goto END
