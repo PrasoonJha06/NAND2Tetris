@@ -1,0 +1,24 @@
+// A single RAM register represents
+// 16 pixels.
+
+START_DARK: 
+    addr = SCREEN
+
+DARK:
+    // if Keyup goto START_LIGHT
+    if RAM[KBD] == 0 goto START_LIGHT
+
+    RAM[addr] = -1 // 1111111111111111
+    addr = addr + 1
+    goto DARK
+
+START_LIGHT:
+    addr = SCREEN
+
+LIGHT:
+    // if Keydown goto START_DARK
+    if RAM[KBD] != 0 goto START_DARK
+
+    RAM[addr] = 0 // 0000000000000000
+    addr = addr + 1
+    goto LIGHT
