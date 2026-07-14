@@ -1,11 +1,17 @@
 Chapter 4 of NAND2Tetris takes a break from chipbuilding to focus on the Hack Machine Language.
 
 The Hack Machine Language mainly consists of the following:
+
 (1) Working with registers and memory
+
 (2) Branching
+
 (3) Variables
+
 (4) Iteration
+
 (5) Pointers 
+
 (6) Input/Output
 
 Hack Machine instructions are loaded into the Hack ROM.
