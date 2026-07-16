@@ -1,4 +1,4 @@
-First Project of NAND2Tetris is about building basic logic gates using a builtin Nand gate.
+First Project of NAND2Tetris is about building basic logic gates using a builtin NAND gate.
 
 NOT and AND can easily be derived from NAND. OR can be derived from NOT and AND using De Morgan's law.
 
