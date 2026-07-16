@@ -1,4 +1,4 @@
-Project 3 is about memory. Computer remembers information using a chip called DFF (Data Flip Flop) which is provided by the authors.
+Project03 is about memory. Computer remembers information using a chip called DFF (Data Flip Flop) which is provided by the authors.
 
 First, we begin by constructing a 1-bit register, i.e., a chip that can store 1 bit of information and update it as per will of the user. This is then extened to 16 bit which is pretty straightforward.
 
