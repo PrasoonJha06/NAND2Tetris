@@ -4,8 +4,8 @@ arithmetic calculations in binary.
 HalfAdder is used to add two bits.
 Its 2 outputs are just basic logic operations.
 
-By observing the truth table of full adder, it an be deduced that it is 
-built using two half adders and an Or gate.
+By observing the truth table of full adder, it can be deduced that it is 
+built using two half adders and another chip from Project01.
 
 Add16 uses previous adders to add an entire 16 bit bus.
 
