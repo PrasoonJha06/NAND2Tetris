@@ -1,6 +1,6 @@
 Project03 is about memory. Computer remembers information using a chip called DFF (Data Flip Flop) which is provided by the authors.
 
-First, we begin by constructing a 1-bit register, i.e., a chip that can store 1 bit of information and update it as per will of the user. This is then extened to 16 bit which is pretty straightforward.
+First, we begin by constructing a 1-bit register, i.e., a chip that can store 1 bit of information and update it as per will of the user. This is then extended to 16 bits which is pretty straightforward.
 
 RAM is a chip which contains mnay registers stacked up. What makes it more complicated than register is that now we have to find a register before reading it or writing on it. This is achieved using combinational chips built in Project01, hence RAM is able to find a register instantaneously (in the same time-cycle).
 
