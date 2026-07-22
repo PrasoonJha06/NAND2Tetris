@@ -1,3 +1,5 @@
 Assembler Incomplete.
 
-C Instruction handling and Symbol Handling are left.
+In A-Instructions, symbol translation is left.
+
+In C-Instructions, turning on comp bits if left.
