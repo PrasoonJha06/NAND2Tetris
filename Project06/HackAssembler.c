@@ -110,7 +110,88 @@ int main(int argc, char *argv[])
         }
         // C Instruction
         else {
-            // TODO
+            // Let's parse the instruction
+            char dest[5] = "";
+            char comp[5] = "";
+            char jump[5] = "";
+            char *equal_ptr = strchr(buffer, '=');
+            char *scolon_ptr = strchr(buffer, ';');
+            char *newl_ptr = strchr(buffer, '\n');
+
+            if ((equal_ptr == NULL) && (scolon_ptr == NULL)) {
+                strcpy(dest, "null");
+                strcpy(jump, "null");
+
+                *newl_ptr = '\0'; // Replace '\n' with '\0'
+                // strncpy() terminates if it hits '\0'
+                strncpy(comp, buffer + text_index, 3);
+            }
+            else if ((equal_ptr != NULL) && (scolon_ptr == NULL)) {
+                strcpy(jump, "null");
+
+                int equal_index = equal_ptr - buffer;
+                *equal_ptr = '\0';
+                *newl_ptr = '\0';
+                strncpy(dest, buffer + text_index, 3);
+                strncpy(comp, buffer + equal_index + 1, 3);
+            }
+            else if ((equal_ptr == NULL) && (scolon_ptr != NULL)) {
+                strcpy(dest, "null");
+
+                int scolon_index = scolon_ptr - buffer;
+                *scolon_ptr = '\0';
+                *newl_ptr = '\0';
+                strncpy(comp, buffer + text_index, 3);
+                strncpy(jump, buffer + scolon_index + 1, 3);
+            }
+            else {
+                int equal_index = equal_ptr - buffer;
+                int scolon_index = scolon_ptr - buffer;
+                *equal_ptr = '\0';
+                *scolon_ptr = '\0';
+                *newl_ptr = '\0';
+                strncpy(dest, buffer + text_index, 3);
+                strncpy(comp, buffer + equal_index + 1, 3);
+                strncpy(jump, buffer + scolon_index + 1, 3);
+            }
+
+            // C-instruction in binary
+            char instruction[17];
+            for (int i = 0; i < 3; ++i)
+                instruction[i] = '1';
+            for (int i = 3; i < 16; ++i)
+                instruction[i] = '0';
+            instruction[16] = '\0';
+
+            // Dest bits
+            if (strchr(dest, 'A') != NULL)
+                instruction[10] = '1';
+            if (strchr(dest, 'D') != NULL)
+                instruction[11] = '1';
+            if (strchr(dest, 'M') != NULL)
+                instruction[12] = '1';
+
+            // Jump bits
+            if (strchr(jump, 'N') != NULL) {
+                instruction[13] = '1';
+                instruction[15] = '1';
+            }
+            else if (strchr(jump, 'P') != NULL) {
+                instruction[13] = '1';
+                instruction[14] = '1';
+                instruction[15] = '1';
+            }
+            else {
+                if (strchr(jump, 'L') != NULL)
+                    instruction[13] = '1';
+                if (strchr(jump, 'E') != NULL)
+                    instruction[14] = '1';
+                if (strchr(jump, 'G') != NULL)
+                    instruction[15] = '1';
+            }
+
+            // comp bits
+            
 
             ++line_no;
         }
