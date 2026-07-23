@@ -7,10 +7,11 @@
 #define COMP_TABLE_SIZE 28
 #define LINE_LENGTH 100
 
-// typedef struct {
-//     char name[20];
-//     int address;
-// } symbol;
+typedef struct {
+    char name[42];
+    int address;
+} symbol;
+int size = sizeof(symbol);
 
 typedef struct {
     char code[4]; // With '\0' 
@@ -18,16 +19,45 @@ typedef struct {
 } comp_bin;
 
 char *tobinary(int num);
-bool isnum(char *str);
+bool isnum(char str[]);
 
 int main(int argc, char *argv[])
 {
-    /*
-    We for now are making a an assembler that 
-    works if there are no symbols in the assembly
-    file
-    */
+    int no_of_items = 23;
+    // Dynamically allocating this array as it will get expanded
+    // depending upon the code
+    symbol *symbols = malloc(no_of_items * size);
+    FILE *predefined = fopen("PredefinedSymbols.txt", "r");
+    if (predefined == NULL) {
+        printf("Couldn't read predefined symbols\n");
+        return 1;
+    }
+    char row[15];
+    int sym_i = 0;
+    while (fgets(row, sizeof(row), predefined) != NULL) {
+        // Guardrail in case of blank row at end
+        if (row[0] == '\n')
+            break;
 
+        char *hyp_ptr = strchr(row, '-');
+        char *per_ptr = strchr(row, '.');
+
+        int hyp_index = hyp_ptr - row;
+        *hyp_ptr = '\0';
+        *per_ptr = '\0';
+        // Turned both hyphen and period to null terminator as
+        // strncpy terminates if it hits null terminator
+        strncpy(symbols[sym_i].name, row, 7);
+        char x[6];
+        strncpy(x, (row + hyp_index + 1), 6);
+        int addr = atoi(x);
+        symbols[sym_i].address = addr; 
+
+        ++sym_i;
+    }
+    fclose(predefined);
+
+    // This one has been statically declared as its size is fixed
     comp_bin comp_table[COMP_TABLE_SIZE] = {
         {"0", "0101010"}, {"1", "0111111"},
         {"-1", "0111010"}, {"D", "0001100"},
@@ -64,9 +94,68 @@ int main(int argc, char *argv[])
     translation_name[ext_index] = '\0';
     strcat(translation_name, ".hack");
 
-    // Opening the assembly file in read mode
-    FILE *program = fopen(argv[1], "r");
-    if (program == NULL) {
+    // First pass
+    FILE *first_pass = fopen(argv[1], "r");
+    if (first_pass == NULL) {
+        printf("Couldn't open file\n");
+        return 1;
+    }
+    char line[LINE_LENGTH];
+    int line_no = 0;
+    while (fgets(line, LINE_LENGTH, first_pass) != NULL) {
+        if (line[0] == '\n')
+            continue;
+
+        int text_index;
+        for (int i = 0; i < LINE_LENGTH; ++i) {
+            if (line[i] != ' ') {
+                text_index = i;
+                break;
+            }
+        }
+
+        // Comment
+        if (line[text_index] == '/') {
+            line_no += 0;
+            continue;
+        }
+        // Label
+        else if (line[text_index] == '(') {
+            line_no += 0;
+
+            char *end_ptr = strchr(line, ')');
+            *end_ptr = '\0';
+
+            ++no_of_items;
+            symbol *tmp = realloc(symbols, no_of_items * size);
+            if (tmp == NULL) {
+                free(symbols);
+                return 1;
+            }
+            symbols = tmp;
+
+            strncpy(symbols[sym_i].name, (line + text_index + 1), 41);
+            symbols[sym_i].address = line_no;
+
+            ++sym_i;
+
+            continue;
+        }
+        // A Instruction
+        else if (line[text_index] == '@') {
+            ++line_no;
+            continue;
+        }
+        else {
+            ++line_no;
+            continue;
+        }
+    }
+    fclose(first_pass);
+
+    // Opening the assembly file for second pass
+    FILE *second_pass = fopen(argv[1], "r");
+    if (second_pass == NULL) {
         printf("Couldn't open file\n");
         return 1;
     }
@@ -78,15 +167,11 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // Time to start reading the program
-
+    int n = 16; // Would be used to assign address to variables
     char buffer[LINE_LENGTH]; 
-    int line_no = 0;
-
-    while(fgets(buffer, sizeof(buffer), program) != NULL) {
-        if (buffer[0] == '\n') {
+    while(fgets(buffer, LINE_LENGTH, second_pass) != NULL) {
+        if (buffer[0] == '\n') 
             continue;
-        }
 
         int text_index;
         for (int i = 0; i < LINE_LENGTH; ++i) {
@@ -97,32 +182,65 @@ int main(int argc, char *argv[])
         }
 
         // Comment
-        if (buffer[text_index] == '/') {
+        if (buffer[text_index] == '/') 
             continue;
-        }
         // Label
-        else if (buffer[text_index] == '(') {
+        else if (buffer[text_index] == '(')
             continue;
-        }
         // A Instruction
         else if (buffer[text_index] == '@') {
             int address;
 
-            // For symbols, we will use isnum()
-            // Even then there will be two cases: 0
-            // Predefined symbol and Variable
             for (int i = text_index + 1; i < LINE_LENGTH; ++i) {
                 if (buffer[i] == '\n')
                     buffer[i] = '\0';
             }
-            char a_instruction[38]; // Arbitrary length
+            char a_instruction[38];
+            // I am calling the text after @ a_instruction
             // strncpy() copies until length is reached or it it hits '\0'
-            strncpy(a_instruction, buffer + text_index + 1, 37);
+            strncpy(a_instruction, (buffer + text_index + 1), 37);
 
-            address = atoi(a_instruction);
+            if (isnum(a_instruction))
+                address = atoi(a_instruction);
+            else {
+                // Check whether a_instruction is in symbols
+                // If it is, assign its corressponding value
+                bool is_there = false;
+                for (int i = 0; i < no_of_items; ++i) {
+                    if (strcmp(a_instruction, symbols[i].name) == 0) {
+                        is_there = true;
+                        address = symbols[i].address;
+                    }
+                }
+
+                // If it isn't, add it to symbols with n as its address
+                // Set address to n
+                // Increment n
+                if (!is_there) {
+                    ++no_of_items;
+                    symbol *tmp = realloc(symbols, no_of_items * size);
+                    if (tmp == NULL) {
+                        free(symbols);
+                        return 1;
+                    }
+                    symbols = tmp;
+
+                    strncpy(symbols[sym_i].name, a_instruction, 41);
+                    symbols[sym_i].address = n;
+
+                    ++sym_i;
+                    
+                    address = n;
+                    ++n;
+                }
+            }
 
             // Here on it's the same for both
             char *binary_address = tobinary(address);
+            if (binary_address == NULL) {
+                printf("Failed to translate @%i\n", address);
+                return 1;
+            }
             fputs(binary_address, translation);
             fputc('\n', translation);
 
@@ -145,7 +263,7 @@ int main(int argc, char *argv[])
 
                 *newl_ptr = '\0'; // Replace '\n' with '\0'
                 // strncpy() terminates if it hits '\0'
-                strncpy(comp, buffer + text_index, 3);
+                strncpy(comp, (buffer + text_index), 3);
             }
             else if ((equal_ptr != NULL) && (scolon_ptr == NULL)) {
                 strcpy(jump, "null");
@@ -153,8 +271,8 @@ int main(int argc, char *argv[])
                 int equal_index = equal_ptr - buffer;
                 *equal_ptr = '\0';
                 *newl_ptr = '\0';
-                strncpy(dest, buffer + text_index, 3);
-                strncpy(comp, buffer + equal_index + 1, 3);
+                strncpy(dest, (buffer + text_index), 3);
+                strncpy(comp, (buffer + equal_index + 1), 3);
             }
             else if ((equal_ptr == NULL) && (scolon_ptr != NULL)) {
                 strcpy(dest, "null");
@@ -162,8 +280,8 @@ int main(int argc, char *argv[])
                 int scolon_index = scolon_ptr - buffer;
                 *scolon_ptr = '\0';
                 *newl_ptr = '\0';
-                strncpy(comp, buffer + text_index, 3);
-                strncpy(jump, buffer + scolon_index + 1, 3);
+                strncpy(comp, (buffer + text_index), 3);
+                strncpy(jump, (buffer + scolon_index + 1), 3);
             }
             else {
                 int equal_index = equal_ptr - buffer;
@@ -171,9 +289,9 @@ int main(int argc, char *argv[])
                 *equal_ptr = '\0';
                 *scolon_ptr = '\0';
                 *newl_ptr = '\0';
-                strncpy(dest, buffer + text_index, 3);
-                strncpy(comp, buffer + equal_index + 1, 3);
-                strncpy(jump, buffer + scolon_index + 1, 3);
+                strncpy(dest, (buffer + text_index), 3);
+                strncpy(comp, (buffer + equal_index + 1), 3);
+                strncpy(jump, (buffer + scolon_index + 1), 3);
             }
 
             // C-instruction in binary
@@ -219,14 +337,16 @@ int main(int argc, char *argv[])
                 }
             }
 
-            // Writing on the file
+            // Writing
             fputs(instruction, translation);
             fputc('\n', translation);
         }
     }
 
+    free(symbols);
+
     // Closing the files
-    fclose(program);
+    fclose(second_pass);
     fclose(translation);
 
     return 0;
@@ -287,8 +407,7 @@ char *tobinary(int num)
         return bus;
 }
 
-// a_instruction not buffer will go inside it
-bool isnum(char *str)
+bool isnum(char str[])
 {
     int i = 0;
     while (str[i] != '\0') {
