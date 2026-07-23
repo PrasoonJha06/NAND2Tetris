@@ -4,10 +4,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define COMP_TABLE_SIZE 28
+#define LINE_LENGTH 100
+
 // typedef struct {
 //     char name[20];
 //     int address;
 // } symbol;
+
+typedef struct {
+    char code[4]; // With '\0' 
+    char bits[8]; // 1 a bit and 6 c bits
+} comp_bin;
 
 char *tobinary(int num);
 bool isnum(char *str);
@@ -19,6 +27,23 @@ int main(int argc, char *argv[])
     works if there are no symbols in the assembly
     file
     */
+
+    comp_bin comp_table[COMP_TABLE_SIZE] = {
+        {"0", "0101010"}, {"1", "0111111"},
+        {"-1", "0111010"}, {"D", "0001100"},
+        {"A", "0110000"}, {"!D", "0001101"},
+        {"!A", "0110001"}, {"-D", "0001111"},
+        {"-A", "0110011"}, {"D+1", "0011111"},
+        {"A+1", "0110111"}, {"D-1", "0001110"},
+        {"A-1", "0110010"}, {"D+A", "0000010"},
+        {"D-A", "0010011"}, {"A-D", "0000111"},
+        {"D&A", "0000000"}, {"D|A", "0010101"},
+        {"M", "1110000"}, {"!M", "1110001"},
+        {"-M", "1110011"}, {"M+1", "1110111"},
+        {"M-1", "1110010"}, {"D+M", "1000010"},
+        {"D-M", "1010011"}, {"M-D", "1000111"},
+        {"D&M", "1000000"}, {"D|M", "1010101"}
+    };
 
     // Checking there is only 1 input
     if (argc != 2) {
@@ -55,46 +80,44 @@ int main(int argc, char *argv[])
 
     // Time to start reading the program
 
-    int line_length = 42; // For it is the answer
-    char buffer[line_length]; 
+    char buffer[LINE_LENGTH]; 
     int line_no = 0;
 
     while(fgets(buffer, sizeof(buffer), program) != NULL) {
-        bool text_there = false;
+        if (buffer[0] == '\n') {
+            continue;
+        }
+
         int text_index;
-        for (int i = 0; i < line_length; ++i) {
+        for (int i = 0; i < LINE_LENGTH; ++i) {
             if (buffer[i] != ' ') {
-                text_there = true;
                 text_index = i;
                 break;
             }
         }
 
-        // If there is no text, goto next iteration
-        if (!text_there)
-            continue;
-
+        // Comment
         if (buffer[text_index] == '/') {
-            if (buffer[text_index + 1] == '/')
-                continue;
-        }
-        else if (buffer[text_index] == '(')
             continue;
+        }
+        // Label
+        else if (buffer[text_index] == '(') {
+            continue;
+        }
         // A Instruction
         else if (buffer[text_index] == '@') {
-
             int address;
 
             // For symbols, we will use isnum()
-            // Even then there will be two cases: 
+            // Even then there will be two cases: 0
             // Predefined symbol and Variable
-            for (int i = text_index + 1; i < line_length; ++i) {
+            for (int i = text_index + 1; i < LINE_LENGTH; ++i) {
                 if (buffer[i] == '\n')
                     buffer[i] = '\0';
             }
-            char a_instruction[39]; // Arbitrary length
+            char a_instruction[38]; // Arbitrary length
             // strncpy() copies until length is reached or it it hits '\0'
-            strncpy(a_instruction, buffer + text_index + 1, 38);
+            strncpy(a_instruction, buffer + text_index + 1, 37);
 
             address = atoi(a_instruction);
 
@@ -105,8 +128,6 @@ int main(int argc, char *argv[])
 
             // free()ing the dynamically allocated string
             free(binary_address);
-            
-            ++line_no;
         }
         // C Instruction
         else {
@@ -190,10 +211,17 @@ int main(int argc, char *argv[])
                     instruction[15] = '1';
             }
 
-            // comp bits
-            
+            // Comp bits
+            for (int i = 0; i < COMP_TABLE_SIZE; ++i) {
+                if (strcmp(comp, comp_table[i].code) == 0) {
+                    strncpy((instruction + 3), comp_table[i].bits, 7);
+                    continue;
+                }
+            }
 
-            ++line_no;
+            // Writing on the file
+            fputs(instruction, translation);
+            fputc('\n', translation);
         }
     }
 
@@ -206,7 +234,7 @@ int main(int argc, char *argv[])
 
 char *tobinary(int num)
 {
-    char *bus = malloc(17 * sizeof(char));
+    char *bus = malloc(17);
     for (int i = 0; i < 16; ++i)
         bus[i] = '0';
     bus[16] = '\0';
