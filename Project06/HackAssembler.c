@@ -42,14 +42,13 @@ int main(int argc, char *argv[])
         char *hyp_ptr = strchr(row, '-');
         char *per_ptr = strchr(row, '.');
 
-        int hyp_index = hyp_ptr - row;
         *hyp_ptr = '\0';
         *per_ptr = '\0';
         // Turned both hyphen and period to null terminator as
         // strncpy terminates if it hits null terminator
         strncpy(symbols[sym_i].name, row, 7);
         char x[6];
-        strncpy(x, (row + hyp_index + 1), 6);
+        strncpy(x, (hyp_ptr + 1), 6);
         int addr = atoi(x);
         symbols[sym_i].address = addr; 
 
@@ -115,10 +114,8 @@ int main(int argc, char *argv[])
         }
 
         // Comment
-        if (line[text_index] == '/') {
+        if (line[text_index] == '/')
             line_no += 0;
-            continue;
-        }
         // Label
         else if (line[text_index] == '(') {
             line_no += 0;
@@ -138,18 +135,12 @@ int main(int argc, char *argv[])
             symbols[sym_i].address = line_no;
 
             ++sym_i;
-
-            continue;
         }
         // A Instruction
-        else if (line[text_index] == '@') {
+        else if (line[text_index] == '@')
             ++line_no;
-            continue;
-        }
-        else {
+        else
             ++line_no;
-            continue;
-        }
     }
     fclose(first_pass);
 
@@ -268,30 +259,26 @@ int main(int argc, char *argv[])
             else if ((equal_ptr != NULL) && (scolon_ptr == NULL)) {
                 strcpy(jump, "null");
 
-                int equal_index = equal_ptr - buffer;
                 *equal_ptr = '\0';
                 *newl_ptr = '\0';
                 strncpy(dest, (buffer + text_index), 3);
-                strncpy(comp, (buffer + equal_index + 1), 3);
+                strncpy(comp, (equal_ptr + 1), 3);
             }
             else if ((equal_ptr == NULL) && (scolon_ptr != NULL)) {
                 strcpy(dest, "null");
 
-                int scolon_index = scolon_ptr - buffer;
                 *scolon_ptr = '\0';
                 *newl_ptr = '\0';
                 strncpy(comp, (buffer + text_index), 3);
-                strncpy(jump, (buffer + scolon_index + 1), 3);
+                strncpy(jump, (scolon_ptr + 1), 3);
             }
             else {
-                int equal_index = equal_ptr - buffer;
-                int scolon_index = scolon_ptr - buffer;
                 *equal_ptr = '\0';
                 *scolon_ptr = '\0';
                 *newl_ptr = '\0';
                 strncpy(dest, (buffer + text_index), 3);
-                strncpy(comp, (buffer + equal_index + 1), 3);
-                strncpy(jump, (buffer + scolon_index + 1), 3);
+                strncpy(comp, (equal_ptr + 1), 3);
+                strncpy(jump, (scolon_ptr + 1), 3);
             }
 
             // C-instruction in binary
