@@ -1,5 +1,5 @@
-The second project of NAND2Tetris consists of making chips that do basic
-arithmetic calculations in binary.
+The second project of NAND2Tetris consists of making chips that do some
+basic arithmetic operations in binary.
 
 HalfAdder is used to add two bits.
 Its 2 outputs are just basic logic operations.
