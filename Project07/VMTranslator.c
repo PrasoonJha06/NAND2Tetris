@@ -7,6 +7,7 @@
 
 int *find_indices(char buffer[]);
 void two_op(char operation, FILE *translation);
+void rel_op(char jump[], FILE *translation, int rel_i);
 
 int main(int argc, char *argv[])
 {
@@ -21,7 +22,12 @@ int main(int argc, char *argv[])
     if (len >= 3 && strcmp(argv[1] + len - 3, ".vm") == 0) {
         strcpy(translation_name, argv[1]);
         translation_name[len - 2] = '\0';
-        strcpy(foo, translation_name); // Will be used in static memory segment
+        int i;
+        for (i = (len - 3); i >= 0; --i) {
+            if (translation_name[i] == '/')
+                break;
+        }
+        strcpy(foo, (translation_name + i + 1));
         strcat(translation_name, "asm");
     } else {
         printf("Enter a file ending with .vm\n");
@@ -41,6 +47,7 @@ int main(int argc, char *argv[])
     }
 
     bool stack_initialized = false;
+    int rel_i = 0;
     char buffer[BUFFER_LENGTH];
     while (fgets(buffer, sizeof(buffer), reader) != NULL) {
         // Setting SP to 256 in assembly
@@ -117,7 +124,7 @@ int main(int argc, char *argv[])
                     fputs("\tM=D\n", translation);
 
                     // SP++
-                    fputs("\t@SP\t\nM=M+1\n", translation);
+                    fputs("\t@SP\n\tM=M+1\n", translation);
                 } else if (strcmp(mem_seg, "pointer") == 0) {
                     char this_or_that[5];
                     if (strcmp(seg_index, "0") == 0)
@@ -132,7 +139,7 @@ int main(int argc, char *argv[])
                     fputs("\tA=M\n\tM=D\n", translation);
 
                     // SP++
-                    fputs("\t@SP\t\nM=M+1\n", translation);
+                    fputs("\t@SP\n\tM=M+1\n", translation);
                 } else {
                     // local, argument, this, that
 
@@ -169,11 +176,40 @@ int main(int argc, char *argv[])
                 strncpy(seg_index, buffer + indices[2], 6);
 
                 if (strcmp(mem_seg, "static") == 0) {
-                    // TODO
+                    // SP--
+                    fputs("\t@SP\n\tM=M-1\n", translation);
+
+                    // foo.seg_index = *SP
+                    fputs("\tA=M\n\tD=M\n\t@", translation);
+                    fputs(foo, translation);
+                    fputs(seg_index, translation);
+                    fputs("\n\tM=D\n", translation);
                 } else if (strcmp(mem_seg, "temp") == 0) {
-                    // TODO
+                    // addr = 5 + i
+                    fputs("\t@5\n\tD=A\n\t@", translation);
+                    fputs(seg_index, translation);
+                    fputs("\n\tD=D+A\n\t@addr\n\tM=D\n", translation);
+
+                    // SP--
+                    fputs("\t@SP\n\tM=M-1\n", translation);
+
+                    // *addr = *SP
+                    fputs("\tA=M\n\tD=M\n", translation);
+                    fputs("\t@addr\n\tA=M\n\tM=D\n", translation);
                 } else if (strcmp(mem_seg, "pointer") == 0) {
-                    // TODO
+                    char this_or_that[5];
+                    if (strcmp(seg_index, "0") == 0)
+                        strcpy(this_or_that, "THIS");
+                    else if (strcmp(seg_index, "1") == 0)
+                        strcpy(this_or_that, "THAT");
+                    
+                    // SP--
+                    fputs("\t@SP\n\tM=M-1\n", translation);
+
+                    // THIS/THAT = *SP
+                    fputs("\tA=M\n\tD=M\n\t@", translation);
+                    fputs(this_or_that, translation);
+                    fputs("\n\tM=D\n", translation);
                 } else {
                     // local, argument, this, that
 
@@ -187,7 +223,17 @@ int main(int argc, char *argv[])
                     else if (strcmp(mem_seg, "that") == 0) 
                         strcpy(mem_name, "THAT");
 
-                    // TODO
+                    // addr = mem_name + i
+                    fprintf(translation, "\t@%s\n\tD=M\n", mem_name);
+                    fprintf(translation, "\t@%s\n\tD=D+A\n", seg_index);
+                    fputs("\t@addr\n\tM=D\n", translation);
+
+                    // SP--
+                    fputs("\t@SP\n\tM=M-1\n", translation);
+
+                    // *addr = *SP
+                    fputs("\tA=M\n\tD=M\n", translation);
+                    fputs("\t@addr\n\tA=M\n\tM=D\n", translation);
                 }
             }
             // Two Operand Operations
@@ -200,11 +246,14 @@ int main(int argc, char *argv[])
             } else if (strstr(buffer, "or") != NULL) {
                 two_op('|', translation);
             } else if (strstr(buffer, "eq") != NULL) {
-                // TODO
+                rel_op("JEQ", translation, rel_i);
+                ++rel_i;
             } else if (strstr(buffer, "gt") != NULL) {
-                // TODO
+                rel_op("JGT", translation, rel_i);
+                ++rel_i;
             } else if (strstr(buffer, "lt") != NULL) {
-                // TODO
+                rel_op("JLT", translation, rel_i);
+                ++rel_i;
             }
             // One Operand Operations
             else if (strstr(buffer, "neg") != NULL) {
@@ -244,10 +293,29 @@ int *find_indices(char buffer[])
 
 void two_op(char operation, FILE *translation)
 {
-    fputs("\t@SP\n\tA=M-1\n\tD=M\n", translation);
-    fputs("\tA=A-1\n\tM=D", translation);
+    fputs("\t@SP\n\tA=M-1\n\tA=A-1\n", translation);
+    fputs("\tD=M\n\tA=A+1\n\tD=D", translation);
     fputc(operation, translation);
-    fputs("M\n\t@SP\n\tM=M-1\n", translation);
+    fputs("M\n\tA=A-1\n\tM=D\n", translation);
+    fputs("\t@SP\n\tM=M-1\n", translation);
+
+    return;
+}
+
+void rel_op(char jump[], FILE *translation, int rel_i)
+{
+    fputs("\t@SP\n\tA=M-1\n", translation);
+    fputs("\tA=A-1\n", translation);
+    fputs("\tD=M\n\tA=A+1\n", translation);
+    fputs("\tD=D-M\n\tA=A-1\n\tM=-1\n", translation);
+    fputs("\t@REL", translation);
+    fprintf(translation, "%i\n", rel_i);
+    fputs("\tD;", translation);
+    fputs(jump, translation);
+    fputs("\n\t@SP\n\tA=M-1\n", translation);
+    fputs("\tA=A-1\n\tM=0\n(REL", translation);
+    fprintf(translation, "%i)\n", rel_i);
+    fputs("\t@SP\n\tM=M-1\n", translation);
 
     return;
 }
