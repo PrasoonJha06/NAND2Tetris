@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    int len = strlen(argv[1]);
+    size_t len = strlen(argv[1]) + 1;
     char translation_name[(len - 2) + 3]; // Replacing vm (2) with asm (3)
     char foo[len - 1]; 
     if (len >= 3 && strcmp(argv[1] + len - 3, ".vm") == 0) {
@@ -270,7 +270,7 @@ char **parser(char *buffer)
 
         // This condition signifies end of line
         if (buffer[rear] == '\n' || buffer[rear] == '\0')
-            return tokens;
+            continue;
 
         // Every step, front moves to the prior rear
         front = rear;
