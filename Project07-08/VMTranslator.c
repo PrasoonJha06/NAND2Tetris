@@ -62,8 +62,6 @@ int main(int argc, char *argv[])
             stack_initialized = true;
         }
 
-        fprintf(translation, "\n\t// %s\n", buffer);
-
         // Skipping empty buffer
         if (buffer[0] == '\n')
             continue;
@@ -71,7 +69,6 @@ int main(int argc, char *argv[])
         // Parsing this buffer
         int token_count = 0;
         char **tokens = parser(buffer, &token_count);
-        printf("%s\n", buffer);
 
         // Conditional statements
         // seg_index is used in comments and pdf
@@ -84,6 +81,8 @@ int main(int argc, char *argv[])
             free(tokens);
             continue;
         } else if (strcmp(tokens[0], "push") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             if (strcmp(tokens[1], "constant") == 0) {
                 // *SP = seg_index
                 fputs("\t@", translation);
@@ -159,6 +158,8 @@ int main(int argc, char *argv[])
                 fputs("\t@SP\n\tM=M+1\n", translation);
             }
         } else if (strcmp(tokens[0], "pop") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             if (strcmp(tokens[1], "static") == 0) {
                 // SP--
                 fputs("\t@SP\n\tM=M-1\n", translation);
@@ -220,28 +221,61 @@ int main(int argc, char *argv[])
                 fputs("\t@addr\n\tA=M\n\tM=D\n", translation);
             }
         } else if (strcmp(tokens[0], "add") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             two_op('+', translation);
         } else if (strcmp(tokens[0], "sub") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             two_op('-', translation);
         } else if (strcmp(tokens[0], "and") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             two_op('&', translation);
         } else if (strcmp(tokens[0], "or") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             two_op('|', translation);
         } else if (strcmp(tokens[0], "eq") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             rel_op("JEQ", translation, rel_i);
             ++rel_i;
         } else if (strcmp(tokens[0], "gt") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             rel_op("JGT", translation, rel_i);
             ++rel_i;
         } else if (strcmp(tokens[0], "lt") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             rel_op("JLT", translation, rel_i);
             ++rel_i;
         } else if (strcmp(tokens[0], "neg") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             fputs("\t@SP\n\tA=M-1\n", translation);
             fputs("\tM=-M\n", translation);
         } else if (strcmp(tokens[0], "not") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
             fputs("\t@SP\n\tA=M-1\n", translation);
             fputs("\tM=!M\n", translation);
+        } else if (strcmp(tokens[0], "label") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
+            fprintf(translation, "(%s)\n", tokens[1]);
+        } else if (strcmp(tokens[0], "goto") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
+            fprintf(translation, "\t@%s\n", tokens[1]);
+            fprintf(translation, "\t0;JMP\n");
+        } else if (strcmp(tokens[0], "if-goto") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
+            fprintf(translation, "\t@SP\n\tM=M-1\n");
+            fprintf(translation, "\tA=M\n\tD=M\n");
+            fprintf(translation, "\t@%s\n\tD;JNE\n", tokens[1]);
         }
 
         // Freeing up tokens
@@ -252,6 +286,7 @@ int main(int argc, char *argv[])
 
     fclose(reader);
     fclose(translation);
+
     return 0;
 }
 
