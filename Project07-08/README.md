@@ -6,4 +6,4 @@ The task of Project07 is to write a translator that translates this VM code into
 
 Chapter 8 expands the VM translator by adding control statements and functions.
 
-15/08/26: Doing Project08, I realized that the structure that the structure of my Project07 is not how it is supposed to be done. I started rewriting the VM translator and well, this rewritten version just does not work. I do not know how to fix it.
+15/08/26: Previously written Translator was not parsing through elements but only detecting them. I thought that was a shortcut in project07 but I ended up paying for it in project08 and as a punishment, I had to rewrite it which ended up being more difficult than it should have been as I screwed memory management.
