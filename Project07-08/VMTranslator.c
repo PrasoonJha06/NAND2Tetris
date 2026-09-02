@@ -1,14 +1,15 @@
+#include <dirent.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define BUFFER_LENGTH 100
-#define MAX_TOKENS 3 // for now
+#define MAX_TOKENS 3
 
-char **parser(char *buffer, int *token_count);
+char **parser(char buffer[], int *token_count);
 void two_op(char operation, FILE *translation);
-void rel_op(char jump[], FILE *translation, int rel_i);
+void rel_op(char jump[], FILE *translation, int *rel_i);
 
 int main(int argc, char *argv[]) 
 {
@@ -19,7 +20,7 @@ int main(int argc, char *argv[])
 
     int len = strlen(argv[1]);
     char translation_name[len + 2]; // Replacing vm (2) with asm (3)
-    char foo[len - 1]; 
+    char filename[len - 1]; 
     if (len >= 3 && strcmp(argv[1] + len - 3, ".vm") == 0) {
         strcpy(translation_name, argv[1]);
         translation_name[len - 2] = '\0';
@@ -28,7 +29,7 @@ int main(int argc, char *argv[])
             if (translation_name[i] == '/')
                 break;
         }
-        strcpy(foo, (translation_name + i + 1));
+        strcpy(filename, (translation_name + i + 1));
         strcat(translation_name, "asm");
     } else {
         printf("Enter a file ending with .vm\n");
@@ -71,10 +72,6 @@ int main(int argc, char *argv[])
         char **tokens = parser(buffer, &token_count);
 
         // Conditional statements
-        // seg_index is used in comments and pdf
-        // for the index inside a memory segment as 
-        // that was what it was in an earlier version 
-        // of this program
         if (tokens[0][0] == '/') { 
             for (int i = 0; i < token_count; i++) 
                 free(tokens[i]);
@@ -84,7 +81,7 @@ int main(int argc, char *argv[])
             fprintf(translation, "\n\t// %s\n", buffer);
 
             if (strcmp(tokens[1], "constant") == 0) {
-                // *SP = seg_index
+                // *SP = tokens[2]
                 fputs("\t@", translation);
                 fputs(tokens[2], translation);
                 fputs("\n\tD=A\n\t@SP\n", translation);
@@ -93,9 +90,9 @@ int main(int argc, char *argv[])
                 // SP++
                 fputs("\t@SP\n\tM=M+1\n", translation);
             } else if (strcmp(tokens[1], "static") == 0) {
-                // *SP = foo.seg_index
+                // *SP = filename.tokens[2]
                 fputs("\t@", translation);
-                fputs(foo, translation);
+                fputs(filename, translation);
                 fputs(tokens[2], translation);
                 fputs("\n\tD=M\n\t@SP\n", translation);
                 fputs("\tA=M\n\tM=D\n", translation);
@@ -103,7 +100,7 @@ int main(int argc, char *argv[])
                 // SP++
                 fputs("\t@SP\n\tM=M+1\n", translation);
             } else if (strcmp(tokens[1], "temp") == 0) {
-                // addr = 5 + seg_index
+                // addr = 5 + tokens[2]
                 fputs("\t@5\n\tD=A\n\t@", translation);
                 fputs(tokens[2], translation);
                 fputs("\n\tD=D+A\n", translation);
@@ -143,7 +140,7 @@ int main(int argc, char *argv[])
                 else if (strcmp(tokens[1], "that") == 0) 
                     strcpy(mem_name, "THAT");
 
-                // addr = mem_name + seg_index
+                // addr = mem_name + tokens[2]
                 fputs("\t@", translation);
                 fputs(mem_name, translation);
                 fputs("\n\tD=M\n\t@", translation);
@@ -164,9 +161,9 @@ int main(int argc, char *argv[])
                 // SP--
                 fputs("\t@SP\n\tM=M-1\n", translation);
 
-                // foo.seg_index = *SP
+                // filename.tokens[2] = *SP
                 fputs("\tA=M\n\tD=M\n\t@", translation);
-                fputs(foo, translation);
+                fputs(filename, translation);
                 fputs(tokens[2], translation);
                 fputs("\n\tM=D\n", translation);
             } else if (strcmp(tokens[1], "temp") == 0) {
@@ -239,18 +236,15 @@ int main(int argc, char *argv[])
         } else if (strcmp(tokens[0], "eq") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
-            rel_op("JEQ", translation, rel_i);
-            ++rel_i;
+            rel_op("JEQ", translation, &rel_i);
         } else if (strcmp(tokens[0], "gt") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
-            rel_op("JGT", translation, rel_i);
-            ++rel_i;
+            rel_op("JGT", translation, &rel_i);
         } else if (strcmp(tokens[0], "lt") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
-            rel_op("JLT", translation, rel_i);
-            ++rel_i;
+            rel_op("JLT", translation, &rel_i);
         } else if (strcmp(tokens[0], "neg") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
@@ -276,6 +270,36 @@ int main(int argc, char *argv[])
             fprintf(translation, "\t@SP\n\tM=M-1\n");
             fprintf(translation, "\tA=M\n\tD=M\n");
             fprintf(translation, "\t@%s\n\tD;JNE\n", tokens[1]);
+        } else if (strcmp(tokens[0], "function") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
+            fprintf(translation, "(%s)\n", tokens[1]);
+            int local_var_no = atoi(tokens[2]);
+            for (int i = 0; i < local_var_no; i++) {
+                // push 0
+                fprintf(translation, "\t@0\n\tD=A\n");
+                fprintf(translation, "\t@SP\n\tA=M\n\tM=D\n");
+                fprintf(translation, "\t@SP\n\tM=M+1\n");
+            }
+        } else if (strcmp(tokens[0], "call") == 0) {
+            // TODO
+        } else if (strcmp(tokens[0], "return") == 0) {
+            fprintf(translation, "\n\t// %s\n", buffer);
+
+            // frame = LCL
+            fprintf(translation, "\t@LCL\n\tD=M\n");
+            fprintf(translation, "\t@frame\n\tM=D\n");
+
+            // TODO
+
+            // retAddr = *(frame - 5)
+            // *ARG = pop()
+            // SP = ARG + 1
+            // THAT = *(frame - 1)
+            // THIS = *(frame - 2)
+            // ARG = *(frame - 3)
+            // LCL = *(frame - 4)
+            // goto retAddr
         }
 
         // Freeing up tokens
@@ -290,7 +314,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-char **parser(char *buffer, int *token_count)
+char **parser(char buffer[], int *token_count)
 {
     int start = 0;
     while (buffer[start] == ' ' || buffer[start] == '\t')
@@ -342,7 +366,7 @@ void two_op(char operation, FILE *translation)
     return;
 }
 
-void rel_op(char jump[], FILE *translation, int rel_i)
+void rel_op(char jump[], FILE *translation, int *rel_i)
 {
     fputs("\t@SP\n\tA=M-1\n", translation);
     fputs("\tA=A-1\n", translation);
@@ -356,6 +380,8 @@ void rel_op(char jump[], FILE *translation, int rel_i)
     fputs("\tA=A-1\n\tM=0\n(REL", translation);
     fprintf(translation, "%i)\n", rel_i);
     fputs("\t@SP\n\tM=M-1\n", translation);
+
+    (*rel_i)++;
 
     return;
 }
