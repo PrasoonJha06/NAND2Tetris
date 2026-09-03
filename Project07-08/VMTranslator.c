@@ -4,9 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BUFFER_LENGTH 100
-#define MAX_TOKENS 3
-
 char **parser(char buffer[], int *token_count);
 void two_op(char operation, FILE *translation);
 void rel_op(char jump[], FILE *translation, int *rel_i);
@@ -14,13 +11,13 @@ void rel_op(char jump[], FILE *translation, int *rel_i);
 int main(int argc, char *argv[]) 
 {
     if (argc != 2) {
-        printf("Usage: ./VMTranslator <filename>\n");
+        printf("Usage: ./VMTranslator <file_name>\n");
         return 1;
     }
 
     int len = strlen(argv[1]);
     char translation_name[len + 2]; // Replacing vm (2) with asm (3)
-    char filename[len - 1]; 
+    char file_name[len - 1]; 
     if (len >= 3 && strcmp(argv[1] + len - 3, ".vm") == 0) {
         strcpy(translation_name, argv[1]);
         translation_name[len - 2] = '\0';
@@ -29,7 +26,7 @@ int main(int argc, char *argv[])
             if (translation_name[i] == '/')
                 break;
         }
-        strcpy(filename, (translation_name + i + 1));
+        strcpy(file_name, (translation_name + i + 1));
         strcat(translation_name, "asm");
     } else {
         printf("Enter a file ending with .vm\n");
@@ -50,7 +47,10 @@ int main(int argc, char *argv[])
 
     bool stack_initialized = false;
     int rel_i = 0;
-    char buffer[BUFFER_LENGTH];
+    char buffer[100]; // Just an arbitrary length
+    char func_name[20] = " ";
+
+
     while (fgets(buffer, sizeof(buffer), reader) != NULL) {
         // Setting SP to 256 in assembly
         if (!stack_initialized) {
@@ -90,9 +90,9 @@ int main(int argc, char *argv[])
                 // SP++
                 fputs("\t@SP\n\tM=M+1\n", translation);
             } else if (strcmp(tokens[1], "static") == 0) {
-                // *SP = filename.tokens[2]
+                // *SP = file_name.tokens[2]
                 fputs("\t@", translation);
-                fputs(filename, translation);
+                fputs(file_name, translation);
                 fputs(tokens[2], translation);
                 fputs("\n\tD=M\n\t@SP\n", translation);
                 fputs("\tA=M\n\tM=D\n", translation);
@@ -161,9 +161,9 @@ int main(int argc, char *argv[])
                 // SP--
                 fputs("\t@SP\n\tM=M-1\n", translation);
 
-                // filename.tokens[2] = *SP
+                // file_name.tokens[2] = *SP
                 fputs("\tA=M\n\tD=M\n\t@", translation);
-                fputs(filename, translation);
+                fputs(file_name, translation);
                 fputs(tokens[2], translation);
                 fputs("\n\tM=D\n", translation);
             } else if (strcmp(tokens[1], "temp") == 0) {
@@ -258,22 +258,33 @@ int main(int argc, char *argv[])
         } else if (strcmp(tokens[0], "label") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
-            fprintf(translation, "(%s)\n", tokens[1]);
+            if (strcmp(func_name, " ") == 0)
+                fprintf(translation, "(%s)\n", tokens[1]);
+            else
+                fprintf(translation, "(%s$%s)\n", func_name, tokens[1]);
         } else if (strcmp(tokens[0], "goto") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
-            fprintf(translation, "\t@%s\n", tokens[1]);
+            if (strcmp(func_name, " ") == 0)
+                fprintf(translation, "\t%s\n", tokens[1]);
+            else
+                fprintf(translation, "\t@%s$%s\n", func_name, tokens[1]);
             fprintf(translation, "\t0;JMP\n");
         } else if (strcmp(tokens[0], "if-goto") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
             fprintf(translation, "\t@SP\n\tM=M-1\n");
             fprintf(translation, "\tA=M\n\tD=M\n");
-            fprintf(translation, "\t@%s\n\tD;JNE\n", tokens[1]);
+            if (strcmp(func_name, " ") == 0)
+                fprintf(translation, "\t@%s\n", tokens[1]);
+            else
+                fprintf(translation, "\t@%s$%s\n", func_name, tokens[1]);
+            fprintf(translation, "\tD;JNE\n");
         } else if (strcmp(tokens[0], "function") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
-            fprintf(translation, "(%s)\n", tokens[1]);
+            strcpy(func_name, tokens[1]);
+            fprintf(translation, "(%s)\n", func_name);
             int local_var_no = atoi(tokens[2]);
             for (int i = 0; i < local_var_no; i++) {
                 // push 0
@@ -283,6 +294,7 @@ int main(int argc, char *argv[])
             }
         } else if (strcmp(tokens[0], "call") == 0) {
             // TODO
+
         } else if (strcmp(tokens[0], "return") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
@@ -290,16 +302,46 @@ int main(int argc, char *argv[])
             fprintf(translation, "\t@LCL\n\tD=M\n");
             fprintf(translation, "\t@frame\n\tM=D\n");
 
-            // TODO
-
             // retAddr = *(frame - 5)
+            fprintf(translation, "\t@frame\n\tD=M\n");
+            fprintf(translation, "\t@5\n\tD=D-A\n");
+            fprintf(translation, "\tA=D\n\tD=M\n");
+            fprintf(translation, "\t@retAddr\n\tM=D\n");
+
             // *ARG = pop()
+            fprintf(translation, "\t@SP\n\tA=M-1\n");
+            fprintf(translation, "\tD=M\n\t@ARG\n");
+            fprintf(translation, "\tA=M\n\tM=D\n");
+
             // SP = ARG + 1
+            fprintf(translation, "\t@ARG\n\tD=M+1\n");
+            fprintf(translation, "\t@SP\n\tM=D\n");
+
             // THAT = *(frame - 1)
+            fprintf(translation, "\t@frame\n\tD=M-1\n");
+            fprintf(translation, "\tA=D\n\tD=M\n");
+            fprintf(translation, "\t@THAT\n\tM=D\n");
+
             // THIS = *(frame - 2)
+            fprintf(translation, "\t@frame\n\tD=M\n");
+            fprintf(translation, "\t@2\n\tD=D-A\n");
+            fprintf(translation, "\tA=D\n\tD=M\n");
+            fprintf(translation, "\t@THIS\n\tM=D\n");
+
             // ARG = *(frame - 3)
+            fprintf(translation, "\t@frame\n\tD=M\n");
+            fprintf(translation, "\t@3\n\tD=D-A\n");
+            fprintf(translation, "\tA=D\n\tD=M\n");
+            fprintf(translation, "\t@ARG\n\tM=D\n");
+
             // LCL = *(frame - 4)
+            fprintf(translation, "\t@frame\n\tD=M\n");
+            fprintf(translation, "\t@4\n\tD=D-A\n");
+            fprintf(translation, "\tA=D\n\tD=M\n");
+            fprintf(translation, "\t@LCL\n\tM=D\n");
+
             // goto retAddr
+            fprintf(translation, "\t@retAddr\n\tA=M\n\t0;JMP\n");
         }
 
         // Freeing up tokens
@@ -316,14 +358,16 @@ int main(int argc, char *argv[])
 
 char **parser(char buffer[], int *token_count)
 {
+    int max_tokens = 3;
+
     int start = 0;
     while (buffer[start] == ' ' || buffer[start] == '\t')
         start++;
     int front = start, rear = start;
 
     // Takingh each string as an array of 21 chars
-    char **tokens = malloc(MAX_TOKENS * sizeof(char *));
-    for (int i = 0; i < MAX_TOKENS; i++) {
+    char **tokens = malloc(max_tokens * sizeof(char *));
+    for (int i = 0; i < max_tokens; i++) {
 
         // This condition signifies end of line
         if (buffer[rear] == '\n' || buffer[rear] == '\0')
