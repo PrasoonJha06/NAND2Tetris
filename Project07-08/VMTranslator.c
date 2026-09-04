@@ -4,52 +4,118 @@
 #include <stdlib.h>
 #include <string.h>
 
+bool stack_initialized = false;
+bool is_dir = false;
+bool sys_called = false;
+int rel_i = 0;
+char func_name[40] = " ";
+
+void translate(char file[], FILE *translation);
 char **parser(char buffer[], int *token_count);
 void two_op(char operation, FILE *translation);
-void rel_op(char jump[], FILE *translation, int *rel_i);
+void rel_op(char jump[], FILE *translation);
 
-int main(int argc, char *argv[]) 
+int main(int argc, char *argv[])
 {
     if (argc != 2) {
-        printf("Usage: ./VMTranslator <file_name>\n");
+        printf("Usage: ./VMTranslator <source>\n");
         return 1;
     }
 
+    // Reading the file(s) and writing into translation file
     int len = strlen(argv[1]);
-    char translation_name[len + 2]; // Replacing vm (2) with asm (3)
-    char file_name[len - 1]; 
+
     if (len >= 3 && strcmp(argv[1] + len - 3, ".vm") == 0) {
+
+        char translation_name[len + 2]; // asm is 1 character longer
+                                        // and 1 more for '\0'
         strcpy(translation_name, argv[1]);
-        translation_name[len - 2] = '\0';
-        int i;
-        for (i = (len - 3); i >= 0; --i) {
-            if (translation_name[i] == '/')
-                break;
+        translation_name[len - 3] = '\0';
+        strcat(translation_name, ".asm");
+
+        FILE *translation = fopen(translation_name, "w");
+        if (translation == NULL) {
+            printf("Failed to write .asm file\n");
+            return 1;
         }
-        strcpy(file_name, (translation_name + i + 1));
-        strcat(translation_name, "asm");
-    } else {
-        printf("Enter a file ending with .vm\n");
-        return 1;
-    }
 
-    FILE *reader = fopen(argv[1], "r");
+        translate(argv[1], translation);
+
+        fclose(translation);
+        
+    } else {                               // It is a folder
+        is_dir = true;
+
+        DIR *folder; 
+        struct dirent *entry;
+
+        folder = opendir(argv[1]);
+        if (folder == NULL) {
+            printf("Couldn't open folder\n");
+            return 1;
+        }
+
+        // Naming the translation
+        int dir_len = strlen(argv[1]);
+        int j = 0;
+        while (argv[dir_len - (j + 1)] != '/')
+            j++;
+        char last_dir[j + 2]; // +2 for '/' and '\0'
+        strcpy(last_dir, "/");
+        strcat(last_dir, (argv[1] + dir_len - j));
+        char translation_name[dir_len + j + 2 + 3]; 
+        strcpy(translation_name, argv[1]);
+        strcat(translation_name, last_dir);
+        strcat(translation_name, ".asm");
+
+        FILE *translation = fopen(translation_name, "w");
+        if (translation == NULL) {
+            printf("Failed to write .asm file\n");
+            return 1;
+        }
+
+        char reader_addr[dir_len + 30 + 1];
+        strcpy(reader_addr, argv[1]);
+        strcat(reader_addr, "/");
+
+        while ((entry = readdir(folder)) != NULL) {
+            char file[30];
+            strcpy(file, entry->d_name); // d_name contains file's name
+            len = strlen(file);
+            if (len >= 3 && strcmp(file+len-3, ".vm") == 0) {
+                // printf("%s\n", file);
+                strcat(reader_addr, file);
+
+                translate(reader_addr, translation);
+            }
+        }
+
+        fclose(translation);
+        closedir(folder);
+    }
+}
+
+void translate(char file[], FILE *translation)
+{
+    FILE *reader = fopen(file, "r");
     if (reader == NULL) {
-        printf("Cannot open file\n");
-        return 1;
+        printf("Cannot open %s\n", file);
+        return;
     }
 
-    FILE *translation = fopen(translation_name, "w");
-    if (translation == NULL) {
-        printf("Failed to write .asm file\n");
-        return 1;
-    }
+    // foo is file's name without its directory and extension
+    char foo[strlen(file) + 1];
+    char *ptr = strstr(file, ".vm");
+    *ptr = '\0';
+    while (*ptr != '/') {
+        if (file - ptr == 0)
+            break;
 
-    bool stack_initialized = false;
-    int rel_i = 0;
+        ptr--;
+    }
+    strcpy(foo, (ptr + 1));
+
     char buffer[100]; // Just an arbitrary length
-    char func_name[20] = " ";
-
 
     while (fgets(buffer, sizeof(buffer), reader) != NULL) {
         // Setting SP to 256 in assembly
@@ -77,6 +143,7 @@ int main(int argc, char *argv[])
                 free(tokens[i]);
             free(tokens);
             continue;
+
         } else if (strcmp(tokens[0], "push") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
@@ -89,16 +156,19 @@ int main(int argc, char *argv[])
 
                 // SP++
                 fputs("\t@SP\n\tM=M+1\n", translation);
+
             } else if (strcmp(tokens[1], "static") == 0) {
-                // *SP = file_name.tokens[2]
+                // *SP = foo.tokens[2]
                 fputs("\t@", translation);
-                fputs(file_name, translation);
+                fputs(foo, translation);
+                fputc('.', translation);
                 fputs(tokens[2], translation);
                 fputs("\n\tD=M\n\t@SP\n", translation);
                 fputs("\tA=M\n\tM=D\n", translation);
 
                 // SP++
                 fputs("\t@SP\n\tM=M+1\n", translation);
+
             } else if (strcmp(tokens[1], "temp") == 0) {
                 // addr = 5 + tokens[2]
                 fputs("\t@5\n\tD=A\n\t@", translation);
@@ -112,6 +182,7 @@ int main(int argc, char *argv[])
 
                 // SP++
                 fputs("\t@SP\n\tM=M+1\n", translation);
+
             } else if (strcmp(tokens[1], "pointer") == 0) {
                 char this_or_that[5];
                 if (strcmp(tokens[2], "0") == 0)
@@ -127,6 +198,7 @@ int main(int argc, char *argv[])
 
                 // SP++
                 fputs("\t@SP\n\tM=M+1\n", translation);
+
             } else {
                 // local, argument, this, that
 
@@ -161,11 +233,13 @@ int main(int argc, char *argv[])
                 // SP--
                 fputs("\t@SP\n\tM=M-1\n", translation);
 
-                // file_name.tokens[2] = *SP
+                // foo.tokens[2] = *SP
                 fputs("\tA=M\n\tD=M\n\t@", translation);
-                fputs(file_name, translation);
+                fputs(foo, translation);
+                fputc('.', translation);
                 fputs(tokens[2], translation);
                 fputs("\n\tM=D\n", translation);
+
             } else if (strcmp(tokens[1], "temp") == 0) {
                 // addr = 5 + i
                 fputs("\t@5\n\tD=A\n\t@", translation);
@@ -178,6 +252,7 @@ int main(int argc, char *argv[])
                 // *addr = *SP
                 fputs("\tA=M\n\tD=M\n", translation);
                 fputs("\t@addr\n\tA=M\n\tM=D\n", translation);
+
             } else if (strcmp(tokens[1], "pointer") == 0) {
                 char this_or_that[5];
                 if (strcmp(tokens[2], "0") == 0)
@@ -192,6 +267,7 @@ int main(int argc, char *argv[])
                 fputs("\tA=M\n\tD=M\n\t@", translation);
                 fputs(this_or_that, translation);
                 fputs("\n\tM=D\n", translation);
+
             } else {
                 // local, argument, this, that
 
@@ -217,44 +293,54 @@ int main(int argc, char *argv[])
                 fputs("\tA=M\n\tD=M\n", translation);
                 fputs("\t@addr\n\tA=M\n\tM=D\n", translation);
             }
+
         } else if (strcmp(tokens[0], "add") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
             two_op('+', translation);
+
         } else if (strcmp(tokens[0], "sub") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
             two_op('-', translation);
+
         } else if (strcmp(tokens[0], "and") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
             two_op('&', translation);
+
         } else if (strcmp(tokens[0], "or") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
             two_op('|', translation);
+
         } else if (strcmp(tokens[0], "eq") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
-            rel_op("JEQ", translation, &rel_i);
+            rel_op("JEQ", translation);
+
         } else if (strcmp(tokens[0], "gt") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
-            rel_op("JGT", translation, &rel_i);
+            rel_op("JGT", translation);
+
         } else if (strcmp(tokens[0], "lt") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
-            rel_op("JLT", translation, &rel_i);
+            rel_op("JLT", translation);
+
         } else if (strcmp(tokens[0], "neg") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
             fputs("\t@SP\n\tA=M-1\n", translation);
             fputs("\tM=-M\n", translation);
+
         } else if (strcmp(tokens[0], "not") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
             fputs("\t@SP\n\tA=M-1\n", translation);
             fputs("\tM=!M\n", translation);
+
         } else if (strcmp(tokens[0], "label") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
@@ -270,6 +356,7 @@ int main(int argc, char *argv[])
             else
                 fprintf(translation, "\t@%s$%s\n", func_name, tokens[1]);
             fprintf(translation, "\t0;JMP\n");
+
         } else if (strcmp(tokens[0], "if-goto") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
@@ -280,6 +367,7 @@ int main(int argc, char *argv[])
             else
                 fprintf(translation, "\t@%s$%s\n", func_name, tokens[1]);
             fprintf(translation, "\tD;JNE\n");
+
         } else if (strcmp(tokens[0], "function") == 0) {
             fprintf(translation, "\n\t// %s\n", buffer);
 
@@ -292,6 +380,7 @@ int main(int argc, char *argv[])
                 fprintf(translation, "\t@SP\n\tA=M\n\tM=D\n");
                 fprintf(translation, "\t@SP\n\tM=M+1\n");
             }
+
         } else if (strcmp(tokens[0], "call") == 0) {
             // TODO
 
@@ -351,9 +440,6 @@ int main(int argc, char *argv[])
     }
 
     fclose(reader);
-    fclose(translation);
-
-    return 0;
 }
 
 char **parser(char buffer[], int *token_count)
@@ -406,11 +492,9 @@ void two_op(char operation, FILE *translation)
     fputc(operation, translation);
     fputs("M\n\tA=A-1\n\tM=D\n", translation);
     fputs("\t@SP\n\tM=M-1\n", translation);
-
-    return;
 }
 
-void rel_op(char jump[], FILE *translation, int *rel_i)
+void rel_op(char jump[], FILE *translation)
 {
     fputs("\t@SP\n\tA=M-1\n", translation);
     fputs("\tA=A-1\n", translation);
@@ -425,7 +509,5 @@ void rel_op(char jump[], FILE *translation, int *rel_i)
     fprintf(translation, "%i)\n", rel_i);
     fputs("\t@SP\n\tM=M-1\n", translation);
 
-    (*rel_i)++;
-
-    return;
+    rel_i++;
 }
