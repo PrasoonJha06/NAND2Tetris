@@ -6,4 +6,8 @@ The task of Project07 is to write a translator that translates this VM code into
 
 Chapter 8 expands the VM translator by adding branching statements and functions.
 
-15/08/26: Done with branching operations.
+Enter the name of a VM file or a folder containing VM files in source to translate it into Hack Assembly language.
+
+```bash
+./VMTranslator <source>
+```
