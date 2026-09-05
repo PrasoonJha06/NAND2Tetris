@@ -4,29 +4,21 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
-    char name[30];
-    int return_no;
-} func;
-int func_no = 1;
-
 bool stack_initialized = false;
-bool is_dir = false;
+bool sys_present = false;
 bool sys_called = false;
 int rel_i = 0;
 char func_name[40] = " ";
-bool call_failed = false;
+int return_no = 0;
 
-void translate(char file[], FILE *translation, func *functions);
+void translate(char file[], FILE *translation);
 char **parser(char buffer[], int *token_count);
 void two_op(char operation, FILE *translation);
 void rel_op(char jump[], FILE *translation);
-void call(char function[], int arg_no, FILE *translation, func *functions);
+void call(char function[], int arg_no, FILE *translation);
 
 int main(int argc, char *argv[])
 {
-    func *functions = malloc(sizeof(functions));
-
     if (argc != 2) {
         printf("Usage: ./VMTranslator <source>\n");
         return 1;
@@ -49,13 +41,11 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        translate(argv[1], translation, functions);
+        translate(argv[1], translation);
 
         fclose(translation);
         
     } else {                               // It is a folder
-        is_dir = true;
-
         DIR *folder; 
         struct dirent *entry;
 
@@ -68,8 +58,11 @@ int main(int argc, char *argv[])
         // Naming the translation
         int dir_len = strlen(argv[1]);
         int j = 0;
-        while (argv[1][dir_len - (j + 1)] != '/')
+        while (argv[1][dir_len - (j + 1)] != '/') {
             j++;
+            if ((j + 1) == dir_len) // No '/' found
+                break;
+        }
         char last_dir[j + 2]; // +2 for '/' and '\0'
         strcpy(last_dir, "/");
         strcat(last_dir, (argv[1] + dir_len - j));
@@ -84,19 +77,25 @@ int main(int argc, char *argv[])
             return 1;
         }
 
+        while ((entry = readdir(folder)) != NULL) {
+            if (strcmp(entry->d_name, "Sys.vm")) // d_name contains file's name
+                sys_present = true;
+        }
+
+        rewinddir(folder); // Starting all over again for next iteration
+
         char reader_addr[dir_len + 30 + 1];
         strcpy(reader_addr, argv[1]);
         strcat(reader_addr, "/");
 
         while ((entry = readdir(folder)) != NULL) {
             char file[30];
-            strcpy(file, entry->d_name); // d_name contains file's name
+            strcpy(file, entry->d_name); 
             len = strlen(file);
             if (len >= 3 && strcmp(file+len-3, ".vm") == 0) {
                 strcat(reader_addr, file);
-                printf("%s\n", reader_addr);
+                translate(reader_addr, translation);
 
-                translate(reader_addr, translation, functions);
                 strcpy(reader_addr, argv[1]);
                 strcat(reader_addr, "/");
             }
@@ -105,11 +104,9 @@ int main(int argc, char *argv[])
         fclose(translation);
         closedir(folder);
     }
-
-    free(functions);
 }
 
-void translate(char file[], FILE *translation, func *functions)
+void translate(char file[], FILE *translation)
 {
     FILE *reader = fopen(file, "r");
     if (reader == NULL) {
@@ -134,7 +131,7 @@ void translate(char file[], FILE *translation, func *functions)
     while (fgets(buffer, sizeof(buffer), reader) != NULL) {
         // Setting SP to 256 in assembly
         if (!stack_initialized) {
-            fputs("\t// Initializing SP\n", translation);
+            fputs("// Initializing SP\n", translation);
 
             fputs("\t@256", translation);
             fputs("\n\tD=A\n", translation);
@@ -144,12 +141,12 @@ void translate(char file[], FILE *translation, func *functions)
         }
 
         // Calling Sys.init()
-        if (is_dir && !sys_called) {
-            call("Sys.init", 0, translation, functions);
-            if (call_failed) {
-                fclose(reader);
-                return;
-            }
+        if (sys_present && !sys_called) {
+            fprintf(translation, "// call Sys.init\n");
+
+            call("Sys.init", 0, translation);
+
+            sys_called = true;
         }
 
         // Skipping empty buffer
@@ -166,10 +163,14 @@ void translate(char file[], FILE *translation, func *functions)
                 free(tokens[i]);
             free(tokens);
             continue;
+        } 
 
-        } else if (strcmp(tokens[0], "push") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
+        char *ptr = strchr(buffer, '\n');
+        if (ptr != NULL)
+            *ptr = '\0';
+        fprintf(translation, "// %s\n", buffer);
+        
+        if (strcmp(tokens[0], "push") == 0) {
             if (strcmp(tokens[1], "constant") == 0) {
                 // *SP = tokens[2]
                 fputs("\t@", translation);
@@ -249,8 +250,6 @@ void translate(char file[], FILE *translation, func *functions)
                 fputs("\t@SP\n\tM=M+1\n", translation);
             }
         } else if (strcmp(tokens[0], "pop") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             if (strcmp(tokens[1], "static") == 0) {
                 // SP--
                 fputs("\t@SP\n\tM=M-1\n", translation);
@@ -317,62 +316,40 @@ void translate(char file[], FILE *translation, func *functions)
             }
 
         } else if (strcmp(tokens[0], "add") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             two_op('+', translation);
 
         } else if (strcmp(tokens[0], "sub") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             two_op('-', translation);
 
         } else if (strcmp(tokens[0], "and") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             two_op('&', translation);
 
         } else if (strcmp(tokens[0], "or") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             two_op('|', translation);
 
         } else if (strcmp(tokens[0], "eq") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             rel_op("JEQ", translation);
 
         } else if (strcmp(tokens[0], "gt") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             rel_op("JGT", translation);
 
         } else if (strcmp(tokens[0], "lt") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             rel_op("JLT", translation);
 
         } else if (strcmp(tokens[0], "neg") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             fputs("\t@SP\n\tA=M-1\n", translation);
             fputs("\tM=-M\n", translation);
 
         } else if (strcmp(tokens[0], "not") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             fputs("\t@SP\n\tA=M-1\n", translation);
             fputs("\tM=!M\n", translation);
 
         } else if (strcmp(tokens[0], "label") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             if (strcmp(func_name, " ") == 0)
                 fprintf(translation, "(%s)\n", tokens[1]);
             else
                 fprintf(translation, "(%s$%s)\n", func_name, tokens[1]);
         } else if (strcmp(tokens[0], "goto") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             if (strcmp(func_name, " ") == 0)
                 fprintf(translation, "\t%s\n", tokens[1]);
             else
@@ -380,8 +357,6 @@ void translate(char file[], FILE *translation, func *functions)
             fprintf(translation, "\t0;JMP\n");
 
         } else if (strcmp(tokens[0], "if-goto") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             fprintf(translation, "\t@SP\n\tM=M-1\n");
             fprintf(translation, "\tA=M\n\tD=M\n");
             if (strcmp(func_name, " ") == 0)
@@ -391,7 +366,7 @@ void translate(char file[], FILE *translation, func *functions)
             fprintf(translation, "\tD;JNE\n");
 
         } else if (strcmp(tokens[0], "function") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
+            strcpy(func_name, tokens[1]);
 
             fprintf(translation, "(%s)\n", func_name);
             int local_var_no = atoi(tokens[2]);
@@ -402,16 +377,11 @@ void translate(char file[], FILE *translation, func *functions)
             }
 
         } else if (strcmp(tokens[0], "call") == 0) {
-            int arg_no = atoi(tokens[2]);
-            call(tokens[1], arg_no, translation, functions);
-            if (call_failed) {
-                fclose(reader);
-                return;
-            }
+            fprintf(translation, "// %s\n", buffer);
+
+            call(tokens[1], atoi(tokens[2]), translation);
 
         } else if (strcmp(tokens[0], "return") == 0) {
-            fprintf(translation, "\n\t// %s\n", buffer);
-
             // frame = LCL
             fprintf(translation, "\t@LCL\n\tD=M\n");
             fprintf(translation, "\t@frame\n\tM=D\n");
@@ -537,44 +507,21 @@ void rel_op(char jump[], FILE *translation)
     rel_i++;
 }
 
-void call(char function[], int arg_no, FILE *translation, func *functions)
+void call(char function[], int arg_no, FILE *translation)
 {
-    strcpy(func_name, function);
-    bool is_stored_already = false;
-    int i;
-    for (i = 0; i < func_no; i++) {
-        if (strcmp(func_name, functions[i].name) == 0) {
-            is_stored_already = true;
-            functions[i].return_no++;
-            break;
-        }
-    }
-
-    if (!is_stored_already) {
-        // Add func_name to functions[i].name
-        strcpy(functions[i].name, func_name);
-        // Set functions[i].return_no = 0
-        functions[i].return_no = 0;
-        // Expand functions array
-        func *tmp = realloc(function, (func_no * sizeof(func)));
-        if (tmp == NULL) {
-            printf("Couldn't call %s\n", func_name);
-            free(functions);
-            call_failed = true;
-            return;
-        }
-        functions = tmp;
-        func_no++;
-    }
-
-    // push func_name$ret.functions[i].return_no
-    fprintf(translation, "\t@%s$ret.%d\n", func_name, functions[i].return_no);
+    // push function$ret.return_no
+    fprintf(translation, "\t@%s$ret.%d\n", function, return_no);
     fprintf(translation, "\tD=A\n\t@SP\n");
     fprintf(translation, "\tA=M\n\tM=D\n");
     fprintf(translation, "\t@SP\n\tM=M+1\n");
 
     // push LCL
     fprintf(translation, "\t@LCL\n\tD=M\n\t@SP\n");
+    fprintf(translation, "\tA=M\n\tM=D\n");
+    fprintf(translation, "\t@SP\n\tM=M+1\n");
+
+    // push ARG
+    fprintf(translation, "\t@ARG\n\tD=M\n\t@SP\n");
     fprintf(translation, "\tA=M\n\tM=D\n");
     fprintf(translation, "\t@SP\n\tM=M+1\n");
 
@@ -591,17 +538,19 @@ void call(char function[], int arg_no, FILE *translation, func *functions)
     // ARG = SP - 5 - arg_no
     fprintf(translation, "\t@SP\n\tD=M\n");
     fprintf(translation, "\t@5\n\tD=D-A\n");
-    fprintf(translation, "\t@%s\n\tD=D-A\n", arg_no);
+    fprintf(translation, "\t@%d\n\tD=D-A\n", arg_no);
     fprintf(translation, "\t@ARG\n\tM=D\n");
 
     // LCL = SP
     fprintf(translation, "\t@SP\n\tD=M\n");
     fprintf(translation, "\t@LCL\n\tM=D\n");
 
-    // goto func_name
-    fprintf(translation, "\t@%s\n\tA=M\n", func_name);
-    fprintf(translation, "0;JMP");
+    // goto function
+    fprintf(translation, "\t@%s\n\t0;JMP\n", function);
 
-    // (func_name$ret.functions[i].return_no)
-    fprintf(translation, "(%s$ret.%d)\n", func_name, functions[i].return_no);
+    // (function$ret.return_no)
+    fprintf(translation, "(%s$ret.%d)\n", function, return_no);
+
+    return_no++;
 }
+
