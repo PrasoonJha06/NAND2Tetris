@@ -157,7 +157,6 @@ void translate(char file[], FILE *translation)
         int token_count = 0;
         char **tokens = parser(buffer, &token_count);
 
-        // Conditional statements
         if (tokens[0][0] == '/') { 
             for (int i = 0; i < token_count; i++) 
                 free(tokens[i]);
@@ -377,8 +376,6 @@ void translate(char file[], FILE *translation)
             }
 
         } else if (strcmp(tokens[0], "call") == 0) {
-            fprintf(translation, "// %s\n", buffer);
-
             call(tokens[1], atoi(tokens[2]), translation);
 
         } else if (strcmp(tokens[0], "return") == 0) {
@@ -553,4 +550,3 @@ void call(char function[], int arg_no, FILE *translation)
 
     return_no++;
 }
-
