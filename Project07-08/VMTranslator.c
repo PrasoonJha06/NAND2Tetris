@@ -59,9 +59,9 @@ int main(int argc, char *argv[])
         int dir_len = strlen(argv[1]);
         int j = 0;
         while (argv[1][dir_len - (j + 1)] != '/') {
-            j++;
             if ((j + 1) == dir_len) // No '/' found
                 break;
+            j++;
         }
         char last_dir[j + 2]; // +2 for '/' and '\0'
         strcpy(last_dir, "/");
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
         }
 
         while ((entry = readdir(folder)) != NULL) {
-            if (strcmp(entry->d_name, "Sys.vm")) // d_name contains file's name
+            if (strcmp(entry->d_name, "Sys.vm") == 0) // d_name contains file's name
                 sys_present = true;
         }
 
